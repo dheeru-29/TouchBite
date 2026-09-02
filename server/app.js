@@ -15,7 +15,11 @@ const port = Number(process.env.PORT) || 5000;
 // POST/PATCH requests, so the server's own origin has to be explicitly
 // allowed too, regardless of what CLIENT_ORIGIN (meant for the kiosk, which
 // runs on a different port) is set to.
-const selfOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
+const selfOrigins = [
+  `http://localhost:${port}`,
+  `http://127.0.0.1:${port}`,
+  'https://touchbite.onrender.com',
+];
 const defaultClientOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://0.0.0.0:5173'];
 const configuredOrigins = (process.env.CLIENT_ORIGIN || '')
   .split(',')
