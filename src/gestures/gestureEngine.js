@@ -16,6 +16,8 @@ import { classifyHandGesture, getCursorPosition, isThumbUpRaw, isRingFingerRaw, 
  *  category-menu  — flick up/down to browse categories, thumb-hold to confirm
  *  browse         — ring finger opens the category menu, swipe left/right to
  *                    browse items, flick up to select, thumb-hold to open cart
+ *  assistant-results — swipe left/right through recommendations, flick up to
+ *                       select one, flick down to dismiss the results
  *  item-selected  — pinch-hold toggles quantity mode, pinky-drag-to-corner
  *                    adds to cart, flick down deselects, thumb-hold opens cart
  *  item-qty       — flick up/down changes quantity, pinch-hold exits
@@ -177,6 +179,15 @@ export function stepGestureEngine(state, hand, mode, now, context = {}) {
         if (horizontalDominant && velX > cfg.swipeVelocity) fire(GESTURE_INTENTS.BROWSE_NEXT, cfg.cooldowns.browse);
         else if (horizontalDominant && velX < -cfg.swipeVelocity) fire(GESTURE_INTENTS.BROWSE_PREV, cfg.cooldowns.browse);
         else if (verticalDominant && velY < -cfg.selectFlickVelocity) fire(GESTURE_INTENTS.SELECT_ITEM, cfg.cooldowns.select);
+        else thumbHold(cfg.cooldowns.confirm, context.canConfirm !== false);
+        break;
+      }
+
+      case 'assistant-results': {
+        if (horizontalDominant && velX > cfg.swipeVelocity) fire(GESTURE_INTENTS.BROWSE_NEXT, cfg.cooldowns.browse);
+        else if (horizontalDominant && velX < -cfg.swipeVelocity) fire(GESTURE_INTENTS.BROWSE_PREV, cfg.cooldowns.browse);
+        else if (verticalDominant && velY < -cfg.selectFlickVelocity) fire(GESTURE_INTENTS.SELECT_ITEM, cfg.cooldowns.select);
+        else if (verticalDominant && velY > cfg.selectFlickVelocity) fire(GESTURE_INTENTS.GO_BACK, cfg.cooldowns.select);
         else thumbHold(cfg.cooldowns.confirm, context.canConfirm !== false);
         break;
       }

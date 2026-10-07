@@ -9,7 +9,9 @@ export function resolveGestureMode({
   hasSelectedItem,
   qtyMode,
   cartOpen,
+  assistantResults = false,
 }) {
+  if (assistantResults && !hasSelectedItem && !cartOpen && !categoryMenuOpen) return 'assistant-results';
   if (screen === 'welcome') return 'welcome';
   if (screen === 'orderType') return 'order-type';
   if (screen === 'checkout') return 'payment';

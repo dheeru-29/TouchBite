@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEngineState, stepGestureEngine } from './gestureEngine.js';
+import { resolveGestureMode } from './gestureController.js';
 
 // Minimal synthetic hand: an object keyed by MediaPipe landmark index, each
 // {x,y,z}. Helper builds a neutral hand we mutate per-test.
@@ -49,6 +50,50 @@ test('browse: flicking up selects the highlighted item', () => {
   const movedUp = hand.map((point, idx) => (idx === 8 ? { ...point, y: point.y - 0.4 } : point));
   const result = stepGestureEngine(state, movedUp, 'browse', (now += 34));
   assert.ok(result.intents.includes('SELECT_ITEM'));
+});
+
+test('assistant results: swipe browses results and flick up selects the highlighted result', () => {
+  const state = createEngineState();
+  const hand = neutralHand();
+  let now = 0;
+  stepGestureEngine(state, withIndexAt(hand, 0.5), 'assistant-results', (now += 34));
+  const swipe = stepGestureEngine(state, withIndexAt(hand, 0.05), 'assistant-results', (now += 34));
+  assert.ok(swipe.intents.includes('BROWSE_NEXT'));
+
+  const selectState = createEngineState();
+  stepGestureEngine(selectState, hand, 'assistant-results', 34);
+  const movedUp = hand.map((point, idx) => (idx === 8 ? { ...point, y: point.y - 0.4 } : point));
+  const selection = stepGestureEngine(selectState, movedUp, 'assistant-results', 68);
+  assert.ok(selection.intents.includes('SELECT_ITEM'));
+});
+
+test('assistant results: flicking down dismisses the results panel', () => {
+  const state = createEngineState();
+  const hand = neutralHand();
+  stepGestureEngine(state, hand, 'assistant-results', 34);
+  const movedDown = hand.map((point, idx) => (idx === 8 ? { ...point, y: point.y + 0.45 } : point));
+  const result = stepGestureEngine(state, movedDown, 'assistant-results', 68);
+  assert.ok(result.intents.includes('GO_BACK'));
+});
+
+test('assistant result mode temporarily overrides the menu and restores the normal mode when dismissed', () => {
+  assert.equal(resolveGestureMode({
+    screen: 'menu',
+    categoryMenuOpen: false,
+    hasSelectedItem: false,
+    qtyMode: false,
+    cartOpen: false,
+    assistantResults: true,
+  }), 'assistant-results');
+
+  assert.equal(resolveGestureMode({
+    screen: 'menu',
+    categoryMenuOpen: false,
+    hasSelectedItem: false,
+    qtyMode: false,
+    cartOpen: false,
+    assistantResults: false,
+  }), 'browse');
 });
 
 test('ring finger held for the dwell period opens the category menu', () => {

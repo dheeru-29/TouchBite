@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { menuApi, orderApi } from './services/api';
+import { aiApi } from './services/aiApi';
+import { stop as stopSpeech } from './utils/textToSpeech';
 import { useCart } from './hooks/useCart';
 import { useGestureControl } from './hooks/useGestureControl';
 import { GESTURE_INTENTS } from './gestures/gestureTypes.js';
@@ -16,14 +18,12 @@ import ProductModal from './components/menu/ProductModal';
 import CartPanel from './components/cart/CartPanel';
 import GestureDebugOverlay from './components/gesture/GestureDebugOverlay';
 
-const IDLE_RESET_MS = 45 * 1000;
-
-function Welcome({ onStart, gestureStatus }) {
+function Welcome({ onStart, gestureStatus, cartItems, onCartUpdate, onAIProductSelect, assistantState }) {
   const heroBurger = menuItems.find((item) => item.id === 'smash-burger');
   const heroFries = menuItems.find((item) => item.id === 'sea-salt-fries');
 
   return (
-    <KioskShell showCart={false} onHome={onStart} gestureStatus={gestureStatus}>
+    <KioskShell showCart={false} onHome={onStart} gestureStatus={gestureStatus} cartItems={cartItems} onCartUpdate={onCartUpdate} onProductSelect={onAIProductSelect} {...assistantState}>
       <section className="welcome">
         <div className="welcome__copy">
           <span className="eyebrow">Touchless ordering, made delightful</span>
@@ -55,12 +55,12 @@ function Welcome({ onStart, gestureStatus }) {
   );
 }
 
-function OrderType({ selected, onSelect, onChoose, onBack, gestureStatus }) {
+function OrderType({ selected, onSelect, onChoose, onBack, gestureStatus, cartItems, onCartUpdate, onAIProductSelect, assistantState }) {
   const options = ['Dine in', 'Takeaway'];
   const choice = selected || options[0];
 
   return (
-    <KioskShell showCart={false} onHome={onBack} gestureStatus={gestureStatus}>
+    <KioskShell showCart={false} onHome={onBack} gestureStatus={gestureStatus} cartItems={cartItems} onCartUpdate={onCartUpdate} onProductSelect={onAIProductSelect} {...assistantState}>
       <section className="order-type">
         <span className="eyebrow">Step 1 of 3</span>
         <h1>
@@ -113,6 +113,8 @@ function Menu({
   onToggleQtyMode,
   onCloseProduct,
   onAddToCart,
+  onProductSelect,
+  assistantState,
   gestureStatus,
 }) {
   const cardRefs = useRef([]);
@@ -128,7 +130,7 @@ function Menu({
   }, [highlightedIndex, items.length]);
 
   return (
-    <KioskShell cartCount={cart.totals.count} onCart={onCart} onHome={onHome} gestureStatus={gestureStatus}>
+    <KioskShell cartCount={cart.totals.count} onCart={onCart} onHome={onHome} gestureStatus={gestureStatus} cartItems={cart.items} onCartUpdate={cart.replaceItems} onProductSelect={onProductSelect} {...assistantState}>
       <section className="menu-page">
         <div className="menu-page__heading">
           <div>
@@ -190,11 +192,11 @@ function Menu({
   );
 }
 
-function Checkout({ cart, orderType, payIndex, onBack, onConfirm, submitting, error, gestureStatus }) {
+function Checkout({ cart, orderType, payIndex, onBack, onConfirm, submitting, error, gestureStatus, onCartUpdate, onAIProductSelect, assistantState }) {
   const method = PAYMENT_METHODS[payIndex];
 
   return (
-    <KioskShell cartCount={cart.totals.count} onCart={onBack} onHome={onBack} gestureStatus={gestureStatus}>
+    <KioskShell cartCount={cart.totals.count} onCart={onBack} onHome={onBack} gestureStatus={gestureStatus} cartItems={cart.items} onCartUpdate={onCartUpdate} onProductSelect={onAIProductSelect} {...assistantState}>
       <section className="checkout-page">
         <div className="checkout-copy">
           <span className="eyebrow">Step 3 of 3</span>
@@ -238,9 +240,9 @@ function Checkout({ cart, orderType, payIndex, onBack, onConfirm, submitting, er
   );
 }
 
-function Success({ order, onRestart, gestureStatus }) {
+function Success({ order, onRestart, gestureStatus, cartItems, onCartUpdate, onAIProductSelect, assistantState }) {
   return (
-    <KioskShell showCart={false} onHome={onRestart} gestureStatus={gestureStatus}>
+    <KioskShell showCart={false} onHome={onRestart} gestureStatus={gestureStatus} cartItems={cartItems} onCartUpdate={onCartUpdate} onProductSelect={onAIProductSelect} {...assistantState}>
       <section className="success-page">
         <div className="success-confetti">✦ · ✦ · ✦</div>
         <div className="success-check">✓</div>
@@ -292,6 +294,8 @@ export default function App() {
   const [itemsLoading, setItemsLoading] = useState(true);
   const [itemsError, setItemsError] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [assistantResults, setAssistantResults] = useState([]);
+  const [assistantSelectedIndex, setAssistantSelectedIndex] = useState(0);
 
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -305,12 +309,16 @@ export default function App() {
   const [orderError, setOrderError] = useState('');
 
   const [gestureEnabled] = useState(true);
-  const lastInteractionRef = useRef(Date.now());
-  const handVisibleRef = useRef(false);
-
-  const markInteraction = useCallback(() => {
-    lastInteractionRef.current = Date.now();
+  const updateAssistantResults = useCallback((results) => {
+    setAssistantResults(results);
+    setAssistantSelectedIndex(0);
   }, []);
+  const assistantState = {
+    assistantResults,
+    onAssistantResultsChange: updateAssistantResults,
+    assistantSelectedIndex,
+    onAssistantSelectedIndexChange: setAssistantSelectedIndex,
+  };
 
   const loadMenu = useCallback(() => {
     let cancelled = false;
@@ -348,6 +356,11 @@ export default function App() {
     }
   }, []);
 
+  const selectAIProduct = useCallback((item) => {
+    setScreen('menu');
+    openProduct(item);
+  }, [openProduct]);
+
   const closeProduct = useCallback(() => {
     setSelectedProduct(null);
     setSelectedOptions([]);
@@ -362,39 +375,22 @@ export default function App() {
   }, [selectedProduct, selectedOptions, quantity, cart, closeProduct]);
 
   const restart = useCallback(() => {
+    stopSpeech();
+    window.dispatchEvent(new CustomEvent('touchbite:voice-reset'));
     cart.clearCart();
+    aiApi.resetSession();
     setOrderType('Dine in');
     setOrder(null);
     setCartOpen(false);
     setCategoryMenuOpen(false);
     closeProduct();
+    setAssistantResults([]);
+    setAssistantSelectedIndex(0);
     setMenuCategory('Featured');
     setPayIndex(0);
     setOrderError('');
     setScreen('welcome');
   }, [cart, closeProduct]);
-
-  useEffect(() => {
-    const handleInteraction = () => markInteraction();
-    window.addEventListener('pointerdown', handleInteraction, { passive: true });
-    window.addEventListener('keydown', handleInteraction);
-    window.addEventListener('touchstart', handleInteraction, { passive: true });
-
-    const idleTimer = window.setInterval(() => {
-      const isIdle = Date.now() - lastInteractionRef.current >= IDLE_RESET_MS;
-      if (isIdle && !handVisibleRef.current && screen !== 'welcome') {
-        lastInteractionRef.current = Date.now();
-        restart();
-      }
-    }, 1000);
-
-    return () => {
-      window.removeEventListener('pointerdown', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
-      window.clearInterval(idleTimer);
-    };
-  }, [markInteraction, restart, screen]);
 
   const submitOrder = useCallback(
     async (methodIndex) => {
@@ -428,8 +424,9 @@ export default function App() {
         hasSelectedItem: Boolean(selectedProduct),
         qtyMode,
         cartOpen,
+        assistantResults: assistantResults.length > 0,
       }),
-    [screen, categoryMenuOpen, selectedProduct, qtyMode, cartOpen]
+    [screen, categoryMenuOpen, selectedProduct, qtyMode, cartOpen, assistantResults.length]
   );
 
   // Keep gesture-relevant values in refs the callback can read fresh without
@@ -446,13 +443,14 @@ export default function App() {
     selectedOptions,
     quantity,
     cart,
+    assistantResults,
+    assistantSelectedIndex,
     payIndex,
     orderType,
   };
 
   const handleIntent = useCallback(
     (intent) => {
-      markInteraction();
       const s = liveRef.current;
 
       switch (s.mode) {
@@ -496,6 +494,25 @@ export default function App() {
           break;
         }
 
+        case 'assistant-results': {
+          if (intent === GESTURE_INTENTS.BROWSE_PREV) {
+            setAssistantSelectedIndex((index) => Math.max(0, index - 1));
+          }
+          if (intent === GESTURE_INTENTS.BROWSE_NEXT) {
+            setAssistantSelectedIndex((index) => Math.min(s.assistantResults.length - 1, index + 1));
+          }
+          if (intent === GESTURE_INTENTS.SELECT_ITEM) {
+            const product = s.assistantResults[s.assistantSelectedIndex];
+            updateAssistantResults([]);
+            selectAIProduct(product);
+          }
+          if (intent === GESTURE_INTENTS.GO_BACK || intent === GESTURE_INTENTS.CONFIRM) {
+            updateAssistantResults([]);
+            setAssistantSelectedIndex(0);
+          }
+          break;
+        }
+
         case 'item-selected':
         case 'item-qty': {
           if (intent === GESTURE_INTENTS.TOGGLE_QTY_MODE) setQtyMode((q) => !q);
@@ -536,7 +553,7 @@ export default function App() {
           break;
       }
     },
-    [openProduct, closeProduct, addSelectedToCart, restart, submitOrder, markInteraction]
+    [openProduct, closeProduct, addSelectedToCart, restart, submitOrder, updateAssistantResults, selectAIProduct]
   );
 
   const gestureContext = useMemo(() => {
@@ -559,8 +576,6 @@ export default function App() {
     context: gestureContext,
     onIntent: handleIntent,
   });
-  handVisibleRef.current = handVisible;
-
   const gestureStatus = {
     mode,
     cameraStatus,
@@ -578,7 +593,7 @@ export default function App() {
   if (screen === 'welcome') {
     return (
       <>
-        <Welcome onStart={() => setScreen('orderType')} gestureStatus={gestureStatus} />
+        <Welcome onStart={() => setScreen('orderType')} gestureStatus={gestureStatus} cartItems={cart.items} onCartUpdate={cart.replaceItems} onAIProductSelect={selectAIProduct} assistantState={assistantState} />
         {import.meta.env.DEV && <GestureDebugOverlay status={cameraStatus} gesture={mode} confidence={0.9} fps={30} />}
       </>
     );
@@ -597,6 +612,10 @@ export default function App() {
           }}
           onBack={restart}
           gestureStatus={gestureStatus}
+          cartItems={cart.items}
+          onCartUpdate={cart.replaceItems}
+          onAIProductSelect={selectAIProduct}
+          assistantState={assistantState}
         />
         {import.meta.env.DEV && <GestureDebugOverlay status={cameraStatus} gesture={mode} confidence={0.9} fps={30} />}
       </>
@@ -618,6 +637,9 @@ export default function App() {
             if (confirm) submitOrder(index);
           }}
           gestureStatus={gestureStatus}
+          onCartUpdate={cart.replaceItems}
+          onAIProductSelect={selectAIProduct}
+          assistantState={assistantState}
         />
         {import.meta.env.DEV && <GestureDebugOverlay status={cameraStatus} gesture={mode} confidence={0.9} fps={30} />}
       </>
@@ -627,7 +649,7 @@ export default function App() {
   if (screen === 'success' && order) {
     return (
       <>
-        <Success order={order} onRestart={restart} gestureStatus={gestureStatus} />
+        <Success order={order} onRestart={restart} gestureStatus={gestureStatus} cartItems={cart.items} onCartUpdate={cart.replaceItems} onAIProductSelect={selectAIProduct} assistantState={assistantState} />
         {import.meta.env.DEV && <GestureDebugOverlay status={cameraStatus} gesture={mode} confidence={0.9} fps={30} />}
       </>
     );
@@ -673,6 +695,8 @@ export default function App() {
         onToggleQtyMode={() => setQtyMode((q) => !q)}
         onCloseProduct={closeProduct}
         onAddToCart={addSelectedToCart}
+        onProductSelect={openProduct}
+        assistantState={assistantState}
         gestureStatus={gestureStatus}
       />
       {import.meta.env.DEV && <GestureDebugOverlay status={cameraStatus} gesture={mode} confidence={0.9} fps={30} />}

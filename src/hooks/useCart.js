@@ -23,6 +23,7 @@ export function useCart() {
   }, []);
 
   const clearCart = useCallback(() => setItems([]), []);
+  const replaceItems = useCallback((nextItems) => setItems(Array.isArray(nextItems) ? nextItems : []), []);
 
   const totals = useMemo(() => {
     const subtotal = items.reduce((sum, item) => sum + (item.price + item.selectedOptions.reduce((a, option) => a + option.price, 0)) * item.quantity, 0);
@@ -31,7 +32,7 @@ export function useCart() {
   }, [items]);
 
   return useMemo(
-    () => ({ items, addItem, changeQuantity, removeItem, clearCart, totals }),
-    [items, addItem, changeQuantity, removeItem, clearCart, totals]
+    () => ({ items, addItem, changeQuantity, removeItem, clearCart, replaceItems, totals }),
+    [items, addItem, changeQuantity, removeItem, clearCart, replaceItems, totals]
   );
 }

@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed:menu": "node seed/seedMenu.js",
+    "ingest:knowledge": "node scripts/ingestMenuKnowledge.js",
     "seed:admin": "node seed/seedAdmin.js"
   },
   "dependencies": {

@@ -6,6 +6,7 @@ const guidance = {
   'order-type': ['↔', 'Swipe to choose · Hold 👍 to confirm'],
   'category-menu': ['↕', 'Flick to browse · Hold 👍 to confirm'],
   browse: ['↔', 'Swipe to browse · 💍 ring finger for menu'],
+  'assistant-results': ['↔', 'Swipe to browse results · Flick up to select · Flick down to close'],
   'item-selected': ['🤙', 'Pinky-drag to cart · Pinch to set quantity'],
   'item-qty': ['↕', 'Flick to change quantity · Pinch to exit'],
   cart: ['👍', 'Hold to pay · Swipe down to close'],

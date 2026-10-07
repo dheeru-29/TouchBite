@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import menuRoutes from './routes/menuRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,6 +45,7 @@ app.use(express.json({ limit: '100kb' }));
 app.get('/api/health', (req, res) => res.json({ success: true, data: { status: 'ok' } }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/api', menuRoutes);
 app.use('/api/orders', orderRoutes);
 
