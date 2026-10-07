@@ -12,7 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "^1.0.1",
+    "@mediapipe/tasks-vision": "1.0.1",
     "@vitejs/plugin-react": "latest",
     "cors": "latest",
     "dotenv": "latest",

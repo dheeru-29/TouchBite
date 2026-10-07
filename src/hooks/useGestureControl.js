@@ -6,6 +6,7 @@ import { playIntentSound } from '../gestures/sfx.js';
 
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const MEDIAPIPE_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm';
 
 /*
  * `mode` and `context` describe *what the current screen means* to the
@@ -59,7 +60,7 @@ export function useGestureControl({ enabled = false, mode = 'browse', context = 
 
     try {
       const vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+        MEDIAPIPE_WASM_URL
       );
       const handLandmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: MODEL_URL },
@@ -71,9 +72,9 @@ export function useGestureControl({ enabled = false, mode = 'browse', context = 
       setIsReady(true);
       return true;
     } catch (error) {
-      console.error('[Gesture] HandLandmarker init failed', error);
+      console.error('[Gesture] HandLandmarker init failed:', error);
       setCameraStatus('unavailable');
-      setCameraError('Gesture control unavailable');
+      setCameraError('Gesture setup failed — retry to reload it');
       return false;
     }
   }, []);
@@ -125,9 +126,10 @@ export function useGestureControl({ enabled = false, mode = 'browse', context = 
     setCameraStatus('inactive');
   }, [stopStream]);
 
-  const retryCamera = useCallback(() => {
-    startCamera();
-  }, [startCamera]);
+  const retryCamera = useCallback(async () => {
+    const ready = await initializeHandLandmarker();
+    if (ready) await startCamera();
+  }, [initializeHandLandmarker, startCamera]);
 
   useEffect(() => {
     let isMounted = true;
