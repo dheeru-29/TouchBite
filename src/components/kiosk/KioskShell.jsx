@@ -91,7 +91,8 @@ export default function KioskShell({
       }
     } catch (error) {
       console.error('Failed to process voice command:', error);
-      resumeWakeListening();
+      setAiResponse('I could not connect to TouchBite AI. Please try again.');
+      startListening();
     }
   }
 

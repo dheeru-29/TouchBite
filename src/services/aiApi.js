@@ -1,4 +1,8 @@
-const API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000/api/ai';
+const API_URL = import.meta.env.VITE_AI_API_URL || (
+  import.meta.env.DEV
+    ? 'http://localhost:5000/api/ai'
+    : 'https://touchbite.onrender.com/api/ai'
+);
 let sessionId = null;
 
 async function request(path, options = {}) {
